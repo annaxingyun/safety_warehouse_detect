@@ -1,0 +1,21 @@
+{
+  "settings_version": "0.0.6",
+  "datasets_dir": "D:\\codeproject\\ultralytics\\datasets",
+  "weights_dir": "weights",
+  "runs_dir": "runs",
+  "uuid": "3614402c4d36b9d9b54aceda50ed36d148b863902d21f3850eedf6eedf3c5c8f",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "hub": true,
+  "mlflow": true,
+  "neptune": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

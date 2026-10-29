@@ -1,0 +1,1344 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>物资计数系统</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #d7dde3;
+      --text: #1f2937;
+      --muted: #667085;
+      --blue: #2563eb;
+      --green: #1b7f3a;
+      --red: #b00020;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
+      font-size: 14px;
+    }
+    .app { height: 100vh; min-height: 0; display: flex; flex-direction: column; padding: 10px; gap: 8px; overflow: hidden; }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(360px, 430px) minmax(0, 1fr);
+      grid-template-rows: minmax(280px, 1fr) minmax(150px, 0.38fr);
+      gap: 8px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .left {
+      grid-column: 1;
+      grid-row: 1 / 3;
+      display: flex;
+      min-height: 0;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      padding-right: 3px;
+    }
+    .view { display: none; }
+    .view.active { display: contents; }
+    .workspace .view.active > .panel {
+      grid-column: 2;
+      grid-row: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    h2, h3 { margin: 0 0 10px; font-size: 15px; }
+    label { display: block; color: #344054; font-weight: 600; margin: 8px 0 4px; }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid #cfd7df;
+      border-radius: 6px;
+      background: #fff;
+      padding: 7px 8px;
+      color: var(--text);
+      font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 110px; }
+    input[type="checkbox"], input[type="radio"] { width: auto; margin-right: 6px; }
+    .material-target-table { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+    .material-target-row {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) 100px 52px;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .material-target-row:last-child { border-bottom: none; }
+    .material-target-row.header { background: #f8fafc; color: #475467; font-size: 12px; font-weight: 700; }
+    .material-target-row.selected { background: #eff6ff; }
+    .material-target-check { justify-self: center; margin: 0 !important; }
+    .material-target-name { min-width: 0; overflow-wrap: anywhere; font-family: Consolas, "Microsoft YaHei UI", monospace; }
+    .material-target-quantity:disabled { background: #f2f4f7; color: #98a2b3; }
+    .material-target-delete { padding: 6px 8px; font-size: 12px; }
+    .material-target-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 8px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .file-row { display: grid; grid-template-columns: 1fr; gap: 4px; }
+    .path-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+    .model-file-input { display: none; }
+    .secondary {
+      background: #e6ebf1;
+      color: #344054;
+      border: 1px solid #cfd7df;
+      padding: 7px 12px;
+      white-space: nowrap;
+    }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 4px; }
+    button {
+      border: none;
+      border-radius: 6px;
+      background: var(--blue);
+      color: white;
+      padding: 8px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled { background: #94a3b8; cursor: default; }
+    .button-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+    .status {
+      border-radius: 6px;
+      border: 1px solid #cfd7df;
+      padding: 8px;
+      min-height: 38px;
+      color: #344054;
+      background: #fff;
+      white-space: pre-wrap;
+    }
+    .status.safe { color: white; background: var(--green); border-color: var(--green); }
+    .status.unsafe { color: white; background: var(--red); border-color: var(--red); }
+    .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: 1; height: 100%; min-height: 0; }
+    .preview-grid.single { grid-template-columns: 1fr; }
+    .preview-box {
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .preview-title { padding: 10px 12px; font-weight: 700; border-bottom: 1px solid var(--line); }
+    .media {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fbfcfd;
+      min-height: 0;
+      color: var(--muted);
+      text-align: center;
+      padding: 8px;
+    }
+    .media img, .media video { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .bottom {
+      grid-column: 2;
+      grid-row: 2;
+      display: grid;
+      grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.1fr);
+      gap: 8px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .bottom .panel {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 10px;
+    }
+    .bottom .panel h3 { flex: 0 0 auto; margin-bottom: 6px; }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: Consolas, "Microsoft YaHei UI", monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .summary, .log { min-height: 0; max-height: none; overflow: hidden; }
+    .summary pre, .log pre { flex: 1 1 auto; min-height: 0; overflow: auto; }
+    .link-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .link-row a { color: var(--blue); font-weight: 700; text-decoration: none; }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 20;
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal {
+      width: min(860px, 100%);
+      max-height: min(720px, 92vh);
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
+      overflow: hidden;
+    }
+    .modal-head, .modal-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .modal-actions { border-top: 1px solid var(--line); border-bottom: none; justify-content: flex-end; }
+    .modal-title { font-weight: 700; min-width: 92px; }
+    .browser-path { flex: 1; font-family: Consolas, "Microsoft YaHei UI", monospace; }
+    .browser-body { padding: 10px 12px; overflow: auto; }
+    .browser-section { margin-bottom: 10px; }
+    .browser-section h3 { margin-bottom: 6px; }
+    .browser-list { display: grid; gap: 4px; }
+    .browser-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid #d7dde3;
+      border-radius: 6px;
+      background: #fff;
+      color: #1f2937;
+      padding: 7px 9px;
+      text-align: left;
+      font-weight: 500;
+    }
+    .browser-item:hover, .browser-item.selected { border-color: var(--blue); background: #eff6ff; }
+    .browser-empty { color: var(--muted); padding: 8px 0; }
+    @media (max-width: 980px) {
+      html, body { height: auto; }
+      body { overflow: auto; }
+      .app { height: auto; min-height: 100vh; overflow: visible; }
+      .workspace, .bottom, .preview-grid { grid-template-columns: 1fr; }
+      .workspace { grid-template-rows: auto; flex: none; min-height: 0; max-height: none; overflow: visible; }
+      .left { overflow: visible; padding-right: 0; }
+      .workspace .view.active > .left,
+      .workspace .view.active > .panel,
+      .bottom { grid-column: 1; grid-row: auto; }
+      .workspace .view.active > .panel { min-height: 300px; overflow: visible; }
+      .preview-box { min-height: 260px; }
+      .media { min-height: 220px; }
+      .bottom { min-height: 320px; overflow: visible; }
+      .bottom .panel { min-height: 155px; }
+      .path-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main class="workspace">
+      <section class="view active" id="view-material">
+        <form class="left unified-material-form" data-endpoint="/api/detect/material-count" data-kind="material" data-async-job="material">
+          <div class="panel">
+            <h2>输入与模型</h2>
+            <label>输入类型</label>
+            <select name="source_type">
+              <option value="single_image">单张图片</option>
+              <option value="image_sequence">图片序列</option>
+              <option value="video">视频文件</option>
+              <option value="live_stream">直播流</option>
+            </select>
+            <div class="file-row file-source-fields">
+              <label>输入文件</label>
+              <input name="source_file" type="file" accept="image/*">
+              <input name="source_path" placeholder="单图/视频可上传；图片序列请填写服务器本地文件夹路径">
+            </div>
+            <div class="live-stream-fields" hidden>
+              <label>直播地址</label><input name="stream_url" placeholder="http://服务器/index/api/whep?app=live&amp;stream=流名称">
+              <div class="button-row"><button class="secondary mock-stream-start-btn" type="button">启动模拟直播流</button><button class="secondary mock-stream-stop-btn" type="button" disabled>停止模拟直播流</button></div>
+              <div class="button-row"><button class="secondary test-stream-btn" type="button">测试 Python 后端拉流</button><button class="secondary stop-stream-btn" type="button" disabled>停止直播</button></div>
+            </div>
+            <label>采样间隔（帧）</label><input name="sample_interval" type="number" min="1" step="1" value="5">
+            <label>检测模型</label>
+            <div class="path-row">
+              <input name="model" class="material-model model-path" placeholder="模型文件路径">
+              <button class="secondary model-file-btn" type="button" data-target="model">上传模型</button>
+              <button class="secondary browse-btn" type="button" data-kind="file" data-target="model">浏览服务器</button>
+              <input name="model_file" class="model-file-input" type="file" accept=".pt,.onnx,.engine,.torchscript,.ts,.pb,.tflite,.xml">
+            </div>
+            <label>输出目录</label>
+            <div class="path-row"><input name="output_dir" class="output-dir"><button class="secondary output-dir-btn" type="button" data-target="output_dir">选择目录</button></div>
+            <div class="row">
+              <div><label>置信度</label><input name="conf" value="0.5"></div>
+              <div><label>device</label><input name="device" class="device-input" value="0"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>跟踪参数</h3>
+            <div class="row">
+              <div><label>高阈值</label><input name="track_high_thresh" value="0.3"></div>
+              <div><label>低阈值</label><input name="track_low_thresh" value="0.1"></div>
+            </div>
+            <div class="row">
+              <div><label>新轨迹阈值</label><input name="new_track_thresh" value="0.4"></div>
+              <div><label>缓存帧数</label><input name="track_buffer" value="50"></div>
+            </div>
+            <label>匹配阈值</label>
+            <input name="match_thresh" value="0.25">
+            <label><input name="with_reid" type="checkbox" checked>启用 ReID</label>
+            <div class="row">
+              <div><label>ReID 空间接近阈值</label><input name="proximity_thresh" type="number" min="0" max="1" step="0.01" value="0.6"></div>
+              <div><label>ReID 外观相似度阈值</label><input name="appearance_thresh" type="number" min="0" max="1" step="0.01" value="0.85"></div>
+            </div>
+            <p class="hint">启用 ReID 时，上述两项数值越大，外观关联条件越严格。</p>
+          </div>
+          <div class="panel">
+            <h3>计数目标类别</h3>
+            <div class="material-target-table" data-material-target-table>
+              <div class="material-target-row header"><span>选择</span><span>类别名称</span><span>实际数量</span><span>操作</span></div>
+            </div>
+            <input name="target_classes" type="hidden">
+            <input name="expected_counts" type="hidden">
+            <p class="hint material-model-hint">选择模型后自动列出该模型可计数的类别。只检测、跟踪、绘制并返回勾选的类别。</p>
+            <div class="button-row"><button type="submit">开始计数</button><button class="secondary stop-job-btn" type="button" disabled>停止计数</button></div>
+          </div>
+          <div class="panel"><h3>运行状态</h3><div class="status">空闲</div></div>
+          <div class="panel"><h3>类别计数与准确度</h3><pre class="stats">暂无统计结果。</pre></div>
+        </form>
+        <section class="panel">
+          <h2 class="material-preview-title">计数结果</h2>
+          <div class="preview-grid material-preview-grid single">
+            <div class="preview-box material-live-preview" hidden><div class="preview-title">直播原始画面</div><div class="media original">请先输入地址并测试直播</div></div>
+            <div class="preview-box"><div class="preview-title">检测结果</div><div class="media result">暂无计数结果</div></div>
+          </div>
+        </section>
+      </section>
+      <section class="bottom" aria-label="运行信息">
+        <div class="panel summary"><h3>结果摘要</h3><pre id="summary">暂无结果。</pre><div class="link-row" id="links"></div></div>
+        <div class="panel log"><h3>运行日志</h3><pre id="log">运行日志会显示在这里</pre></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="pathBrowser">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title" id="browserTitle">选择路径</div>
+        <input class="browser-path" id="browserPath">
+        <button class="secondary" type="button" id="browserGo">打开</button>
+      </div>
+      <div class="browser-body">
+        <div class="browser-section" id="driveSection"><h3>磁盘</h3><div class="browser-list" id="driveList"></div></div>
+        <div class="browser-section"><h3>文件夹</h3><div class="browser-list" id="dirList"></div></div>
+        <div class="browser-section" id="fileSection"><h3>模型文件</h3><div class="browser-list" id="fileList"></div></div>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary" type="button" id="browserParent">上一级</button>
+        <button class="secondary" type="button" id="browserCancel">取消</button>
+        <button type="button" id="browserSelect">选择当前目录</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const summary = document.querySelector("#summary");
+    const log = document.querySelector("#log");
+    const links = document.querySelector("#links");
+    const activeJobs = new WeakMap();
+    const liveTestJobs = new WeakMap();
+    const liveReadyJobs = new WeakMap();
+    const browser = {
+      root: document.querySelector("#pathBrowser"),
+      title: document.querySelector("#browserTitle"),
+      path: document.querySelector("#browserPath"),
+      go: document.querySelector("#browserGo"),
+      parent: document.querySelector("#browserParent"),
+      cancel: document.querySelector("#browserCancel"),
+      select: document.querySelector("#browserSelect"),
+      driveSection: document.querySelector("#driveSection"),
+      driveList: document.querySelector("#driveList"),
+      dirList: document.querySelector("#dirList"),
+      fileSection: document.querySelector("#fileSection"),
+      fileList: document.querySelector("#fileList"),
+      kind: "file",
+      input: null,
+      current: "",
+      parentPath: "",
+      selectedFile: "",
+      onSelect: null
+    };
+
+    fetch("/api/config").then(r => r.json()).then(cfg => {
+      document.querySelectorAll(".material-model").forEach(input => input.value = cfg.default_material_model || "");
+      document.querySelectorAll(".output-dir").forEach(input => input.value = cfg.default_output_dir || "");
+      document.querySelectorAll(".device-input").forEach(input => {
+        if (!input.value || input.value === "auto") input.value = cfg.default_device || "cpu";
+      });
+      document.querySelectorAll(".material-model").forEach(input => {
+        const form = input.closest("form");
+        if (form) loadMaterialClasses(form, input.value);
+      });
+    });
+
+    document.querySelectorAll(".browse-btn").forEach(button => {
+      button.addEventListener("click", () => {
+        const form = button.closest("form");
+        const input = form.querySelector(`[name="${button.dataset.target}"]`);
+        openBrowser(button.dataset.kind, input);
+      });
+    });
+
+    document.querySelectorAll(".output-dir-btn").forEach(button => {
+      button.addEventListener("click", async () => {
+        const form = button.closest("form");
+        const input = form.querySelector(`[name="${button.dataset.target}"]`);
+        button.disabled = true;
+        try {
+          const response = await fetch(`/api/select-path?kind=dir&initial=${encodeURIComponent(input.value || "")}`);
+          const payload = await response.json();
+          if (payload.ok && payload.path) {
+            input.value = payload.path;
+          } else if (!payload.cancelled) {
+            appendLog(`[error] ${payload.error || "目录选择失败"}`);
+          }
+        } catch (error) {
+          appendLog(`[error] ${error.message || error}`);
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+
+    document.querySelectorAll(".model-file-btn").forEach(button => {
+      button.addEventListener("click", () => {
+        button.parentElement.querySelector(".model-file-input").click();
+      });
+    });
+
+    document.querySelectorAll(".mock-stream-start-btn").forEach(button => {
+      button.addEventListener("click", () => {
+        const form = button.closest("form");
+        const streamInput = form.querySelector('input[name="stream_url"]');
+        const stopButton = form.querySelector(".mock-stream-stop-btn");
+        openBrowser("video", streamInput, async (videoPath) => {
+          button.disabled = true;
+          try {
+            const data = new FormData();
+            data.append("video", videoPath);
+            const response = await fetch("/api/mock-stream/start", { method: "POST", body: data });
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) throw new Error(payload.error || "启动模拟直播流失败");
+            if (streamInput) {
+              streamInput.value = payload.url;
+              streamInput.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            if (stopButton) stopButton.disabled = false;
+            appendLog(`[mock-stream] 已启动模拟直播流：${payload.url}，视频：${payload.video}。启动约需数秒，请稍后再点“测试 Python 后端拉流”。`);
+          } catch (error) {
+            appendLog(`[error] ${error.message || error}`);
+          } finally {
+            button.disabled = false;
+          }
+        }, "videos");
+      });
+    });
+
+    document.querySelectorAll(".mock-stream-stop-btn").forEach(button => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const response = await fetch("/api/mock-stream/stop", { method: "POST" });
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || "停止模拟直播流失败");
+          appendLog("[mock-stream] 已停止模拟直播流");
+        } catch (error) {
+          appendLog(`[error] ${error.message || error}`);
+          button.disabled = false;
+        }
+      });
+    });
+
+    document.querySelectorAll(".model-file-input").forEach(input => {
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        const pathInput = input.parentElement.querySelector(".model-path");
+        if (!file || !pathInput) return;
+        const form = input.closest("form");
+        if (form) inspectMaterialModelFile(form, input, pathInput, file);
+      });
+    });
+
+    document.querySelectorAll(".model-path").forEach(input => {
+      input.addEventListener("input", () => {
+        const fileInput = input.parentElement.querySelector(".model-file-input");
+        if (fileInput) fileInput.value = "";
+      });
+    });
+
+    document.querySelectorAll(".unified-material-form .material-model").forEach(input => {
+      let timer = null;
+      const reload = () => {
+        clearTimeout(timer);
+        const fileInput = input.parentElement.querySelector(".model-file-input");
+        if (fileInput && fileInput.files && fileInput.files.length) return;
+        timer = setTimeout(() => {
+          const form = input.closest("form");
+          if (form) loadMaterialClasses(form, input.value);
+        }, 350);
+      };
+      input.addEventListener("change", reload);
+      input.addEventListener("blur", reload);
+    });
+
+    document.querySelectorAll('select[name="source_type"]').forEach(select => {
+      select.addEventListener("change", () => updateSourceInput(select.closest("form")));
+      updateSourceInput(select.closest("form"));
+    });
+
+    document.querySelectorAll('input[name="stream_url"]').forEach(input => {
+      input.addEventListener("change", () => {
+        const form = input.closest("form");
+        if (!form) return;
+        liveReadyJobs.delete(form);
+        updateLiveControls(form);
+        if (liveTestJobs.has(form)) {
+          const status = form.querySelector(".status");
+          status.className = "status unsafe";
+          status.textContent = "直播地址已改变，请先停止当前直播并重新测试。";
+        }
+      });
+    });
+
+    const MATERIAL_TASK_LABELS = { obb: "OBB 旋转框", detect: "目标检测框" };
+
+    function renderMaterialClassRows(table, names, previous) {
+      table.querySelectorAll(".material-target-row[data-class-name]").forEach(row => row.remove());
+      for (const name of names) {
+        const row = document.createElement("div");
+        row.className = "material-target-row";
+        row.dataset.className = name;
+        row.innerHTML = '<input class="material-target-check" type="checkbox">'
+          + '<span class="material-target-name"></span>'
+          + '<input class="material-target-quantity" type="number" min="0" step="1" placeholder="可选" disabled>'
+          + '<span></span>';
+        row.querySelector(".material-target-name").textContent = name;
+        row.querySelector(".material-target-check").setAttribute("aria-label", `选择 ${name}`);
+        row.querySelector(".material-target-quantity").setAttribute("aria-label", `${name} 实际数量`);
+        const prior = previous.get(name.toLocaleLowerCase());
+        if (prior && prior.checked) {
+          const checkbox = row.querySelector(".material-target-check");
+          const quantity = row.querySelector(".material-target-quantity");
+          checkbox.checked = true;
+          row.classList.add("selected");
+          quantity.disabled = false;
+          quantity.value = prior.quantity || "";
+        }
+        bindMaterialTargetRow(row);
+        table.appendChild(row);
+      }
+    }
+
+    function renderMaterialModelInfo(form, payload) {
+      const table = form.querySelector("[data-material-target-table]");
+      const hint = form.querySelector(".material-model-hint");
+      const submit = form.querySelector('button[type="submit"]');
+      if (!table) return;
+      const previous = new Map();
+      table.querySelectorAll(".material-target-row[data-class-name]").forEach(row => {
+        previous.set(row.dataset.className.toLocaleLowerCase(), {
+          checked: Boolean(row.querySelector(".material-target-check")?.checked),
+          quantity: row.querySelector(".material-target-quantity")?.value || ""
+        });
+      });
+      form.dataset.modelTask = payload.task || "";
+      renderMaterialClassRows(table, payload.names || [], previous);
+      if (!payload.supported) {
+        if (hint) hint.textContent = `当前模型 task=${payload.task || "unknown"}，物资计数只支持 OBB 或目标检测模型。`;
+        if (submit) submit.disabled = true;
+        return;
+      }
+      if (submit) submit.disabled = false;
+      if (hint) {
+        const taskLabel = MATERIAL_TASK_LABELS[payload.task] || payload.task || "未知任务";
+        hint.textContent = `模型类型：${taskLabel}，共 ${(payload.names || []).length} 个类别。勾选需要计数的类别，可选填实际数量用于计算准确度。`;
+      }
+    }
+
+    async function loadMaterialClasses(form, modelPath) {
+      const table = form.querySelector("[data-material-target-table]");
+      const hint = form.querySelector(".material-model-hint");
+      const submit = form.querySelector('button[type="submit"]');
+      if (!table) return;
+      const path = (modelPath || "").trim();
+      form.dataset.modelTask = "";
+      if (!path) {
+        renderMaterialClassRows(table, [], new Map());
+        if (hint) hint.textContent = "请选择检测模型后再开始计数。";
+        if (submit) submit.disabled = true;
+        return;
+      }
+      if (hint) hint.textContent = "正在读取模型类别…";
+      try {
+        const response = await fetch(`/api/model-classes?path=${encodeURIComponent(path)}`);
+        const payload = await response.json();
+        if (!payload.ok) throw new Error(payload.error || "无法读取模型");
+        renderMaterialModelInfo(form, payload);
+      } catch (error) {
+        form.dataset.modelTask = "";
+        renderMaterialClassRows(table, [], new Map());
+        if (hint) hint.textContent = `无法读取模型类别：${error.message || error}`;
+        if (submit) submit.disabled = true;
+      }
+    }
+
+    async function inspectMaterialModelFile(form, input, pathInput, file) {
+      const hint = form.querySelector(".material-model-hint");
+      if (hint) hint.textContent = `正在上传并读取模型 ${file.name} 的类别…`;
+      const data = new FormData();
+      data.append("model_file", file);
+      try {
+        const response = await fetch("/api/model-classes", { method: "POST", body: data });
+        const payload = await response.json();
+        if (!payload.ok) throw new Error(payload.error || "无法读取模型");
+        // 模型已保存到服务器，后续提交直接用该路径，避免重复上传。
+        pathInput.value = payload.path || file.name;
+        input.value = "";
+        renderMaterialModelInfo(form, payload);
+      } catch (error) {
+        input.value = "";
+        const submit = form.querySelector('button[type="submit"]');
+        if (hint) hint.textContent = `无法读取模型类别：${error.message || error}`;
+        if (submit) submit.disabled = true;
+      }
+    }
+
+    function bindMaterialTargetRow(row) {
+      const checkbox = row.querySelector(".material-target-check");
+      const quantity = row.querySelector(".material-target-quantity");
+      if (!checkbox || !quantity) return;
+      checkbox.addEventListener("change", () => {
+        quantity.disabled = !checkbox.checked;
+        row.classList.toggle("selected", checkbox.checked);
+        if (!checkbox.checked) quantity.value = "";
+      });
+      const deleteButton = row.querySelector(".material-target-delete");
+      if (deleteButton) deleteButton.addEventListener("click", () => row.remove());
+    }
+
+    document.querySelectorAll(".material-target-row[data-class-name]").forEach(bindMaterialTargetRow);
+
+    document.querySelectorAll(".material-add-class-btn").forEach(button => {
+      const form = button.closest("form");
+      const input = form.querySelector(".material-custom-class-input");
+      const addClass = () => {
+        const className = (input.value || "").trim();
+        input.setCustomValidity("");
+        if (!className) {
+          input.setCustomValidity("请输入需要添加的类别名称。");
+          input.reportValidity();
+          return;
+        }
+        const duplicate = [...form.querySelectorAll(".material-target-row[data-class-name]")]
+          .some(row => (row.dataset.className || "").toLocaleLowerCase() === className.toLocaleLowerCase());
+        if (duplicate) {
+          input.setCustomValidity("该类别已经在表格中。");
+          input.reportValidity();
+          return;
+        }
+
+        const row = document.createElement("div");
+        row.className = "material-target-row selected";
+        row.dataset.className = className;
+        row.innerHTML = '<input class="material-target-check" type="checkbox" checked>'
+          + '<span class="material-target-name"></span>'
+          + '<input class="material-target-quantity" type="number" min="0" step="1" placeholder="可选">'
+          + '<button class="secondary material-target-delete" type="button">删除</button>';
+        row.querySelector(".material-target-name").textContent = className;
+        row.querySelector(".material-target-check").setAttribute("aria-label", `选择 ${className}`);
+        row.querySelector(".material-target-quantity").setAttribute("aria-label", `${className} 实际数量`);
+        form.querySelector(".material-target-table").appendChild(row);
+        bindMaterialTargetRow(row);
+        input.value = "";
+        row.querySelector(".material-target-quantity").focus();
+      };
+      button.addEventListener("click", addClass);
+      input.addEventListener("input", () => input.setCustomValidity(""));
+      input.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          addClass();
+        }
+      });
+    });
+
+    document.querySelectorAll(".test-stream-btn").forEach(button => {
+      button.addEventListener("click", async () => {
+        const form = button.closest("form");
+        if (activeJobs.has(form)) {
+          const activeStatus = form.querySelector(".status");
+          activeStatus.className = "status unsafe";
+          activeStatus.textContent = "算法正在运行，请先停止监测后再重新测试直播。";
+          return;
+        }
+        const streamInput = form.querySelector('input[name="stream_url"]');
+        const status = form.querySelector(".status");
+        const originalBox = form.parentElement.querySelector(".media.original");
+        const streamUrl = (streamInput && streamInput.value || "").trim();
+        if (!streamUrl) {
+          status.className = "status unsafe";
+          status.textContent = "请先输入直播地址。";
+          return;
+        }
+        button.disabled = true;
+        liveReadyJobs.delete(form);
+        try {
+          await cancelLiveTest(form);
+          status.className = "status";
+          status.textContent = "正在使用 Python 后端直接连接 WebRTC...";
+          const data = new FormData();
+          data.append("stream_url", streamUrl);
+          const response = await fetch("/api/live-stream/test", { method: "POST", body: data });
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || "直播测试失败");
+          liveTestJobs.set(form, payload.job_id);
+          originalBox.innerHTML = `<img src="/api/jobs/${payload.job_id}/stream/raw" alt="直播原始画面">`;
+          status.textContent = "正在测试 Python 后端 WebRTC 直拉...";
+          appendLog(`[live-test] Python 后端 WebRTC 直拉任务 ${payload.job_id}`);
+          pollLiveTest(payload.job_id, form, status);
+        } catch (error) {
+          status.className = "status unsafe";
+          status.textContent = `直播测试失败：${error.message || error}`;
+          originalBox.textContent = "直播流不可用";
+        } finally {
+          updateLiveControls(form);
+        }
+      });
+    });
+
+    document.querySelectorAll(".stop-stream-btn").forEach(button => {
+      button.addEventListener("click", async () => {
+        const form = button.closest("form");
+        if (!form || activeJobs.has(form)) return;
+        const status = form.querySelector(".status");
+        const originalBox = form.parentElement.querySelector(".media.original");
+        button.disabled = true;
+        try {
+          await cancelLiveTest(form, true);
+          status.className = "status";
+          status.textContent = "直播已停止";
+          if (originalBox) originalBox.textContent = "直播已停止";
+          appendLog("[live-test] 已停止 Python 后端直播并释放 WebRTC 订阅");
+        } catch (error) {
+          status.className = "status unsafe";
+          status.textContent = `停止直播失败：${error.message || error}`;
+          appendLog(`[live-test] 停止失败：${error.message || error}`);
+        } finally {
+          updateLiveControls(form);
+        }
+      });
+    });
+
+    document.querySelectorAll(".stop-job-btn").forEach(button => {
+      button.addEventListener("click", async () => {
+        const form = button.closest("form");
+        const jobId = activeJobs.get(form);
+        if (!jobId) return;
+        button.disabled = true;
+        try {
+          const response = await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.error || "停止任务失败");
+          form.querySelector(".status").textContent = "正在停止任务...";
+          appendLog(`[stop] ${jobId}`);
+        } catch (error) {
+          button.disabled = false;
+          appendLog(`[error] ${error.message || error}`);
+        }
+      });
+    });
+
+    browser.go.addEventListener("click", () => loadBrowser(browser.path.value));
+    browser.path.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        loadBrowser(browser.path.value);
+      }
+    });
+    browser.parent.addEventListener("click", () => {
+      if (browser.parentPath) loadBrowser(browser.parentPath);
+    });
+    browser.cancel.addEventListener("click", closeBrowser);
+    browser.root.addEventListener("click", event => {
+      if (event.target === browser.root) closeBrowser();
+    });
+    browser.select.addEventListener("click", () => {
+      const value = (browser.kind === "file" || browser.kind === "video") ? browser.selectedFile : browser.current;
+      const onSelect = browser.onSelect;
+      if (value) {
+        if (onSelect) {
+          onSelect(value);
+        } else if (browser.input) {
+          browser.input.value = value;
+          const form = browser.input.closest("form");
+          if (form && browser.input.classList.contains("material-model")) {
+            loadMaterialClasses(form, value);
+          }
+        }
+      }
+      closeBrowser();
+    });
+
+    document.querySelectorAll("input[type=file]").forEach(input => {
+      input.addEventListener("change", () => {
+        if (input.classList.contains("model-file-input")) return;
+        const file = input.files && input.files[0];
+        const form = input.closest("form");
+        const box = form.parentElement.querySelector(".media.original");
+        if (!file) return;
+        if (!box) return;
+        if (input.webkitdirectory) {
+          const firstFolder = file.webkitRelativePath ? file.webkitRelativePath.split("/")[0] : "已选择文件夹";
+          box.textContent = `${firstFolder} (${input.files.length} 个文件)`;
+          return;
+        }
+        const url = URL.createObjectURL(file);
+        if (form.dataset.kind === "video" || file.type.startsWith("video/")) {
+          box.innerHTML = `<video src="${url}" controls></video>`;
+        } else {
+          box.innerHTML = `<img src="${url}" alt="原始图像">`;
+        }
+      });
+    });
+
+    document.querySelectorAll("form[data-endpoint]").forEach(form => {
+      form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const button = form.querySelector("button[type=submit]");
+        const stopButton = form.querySelector(".stop-job-btn");
+        const status = form.querySelector(".status");
+        const stats = form.querySelector(".stats");
+        const resultBox = form.parentElement.querySelector(".media.result");
+        const originalBox = form.parentElement.querySelector(".media.original");
+        const liveMode = isLiveForm(form);
+        const reuseLivePreview = liveMode && isLivePreviewReady(form);
+        if (form.classList.contains("unified-material-form")) {
+          const targetError = prepareMaterialTargets(form);
+          if (targetError) {
+            status.className = "status unsafe";
+            status.textContent = targetError;
+            return;
+          }
+        }
+        if (liveMode) {
+          appendLog(reuseLivePreview
+            ? "[live-input] 算法将复用当前 Python WebRTC 连接"
+            : "[live-input] Python 后端将直接拉取并解码 WebRTC");
+        }
+        const data = new FormData(form);
+        if (!data.get("image") && !data.get("video")) {
+          // Empty file inputs are harmless; the server will use *_path when provided.
+        }
+        button.disabled = true;
+        setTaskParametersLocked(form, true);
+        if (stopButton) stopButton.disabled = true;
+        status.className = "status";
+        status.textContent = "计数中，请等待...";
+        stats.textContent = "暂无统计结果。";
+        resultBox.textContent = "计数中...";
+        summary.textContent = "计数中...";
+        links.innerHTML = "";
+        appendLog(`[start] ${form.dataset.endpoint}`);
+        try {
+          const response = await fetch(form.dataset.endpoint, { method: "POST", body: data });
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || "计数失败");
+          }
+          if (form.dataset.asyncJob) {
+            appendLog(payload.command ? `[command] ${payload.command}` : `[job] ${payload.job_id}`);
+            activeJobs.set(form, payload.job_id);
+            updateLiveControls(form);
+            if (stopButton) stopButton.disabled = false;
+            resultBox.innerHTML = `<img src="/api/jobs/${payload.job_id}/stream/annotated" alt="实时检测预览">`;
+            if (liveMode) {
+              if (originalBox && !reuseLivePreview) {
+                originalBox.innerHTML = `<img src="/api/jobs/${payload.job_id}/stream/raw" alt="直播原始画面">`;
+              }
+            }
+            await pollJob(payload.job_id, form, button, stopButton, status, stats, resultBox);
+            return;
+          }
+          throw new Error("服务端未返回任务编号");
+        } catch (error) {
+          status.classList.add("unsafe");
+          status.textContent = "计数失败";
+          stats.textContent = String(error.message || error);
+          summary.textContent = String(error.message || error);
+          resultBox.textContent = "计数失败";
+          appendLog(`[error] ${error.message || error}`);
+        } finally {
+          if (!activeJobs.has(form)) {
+            setTaskParametersLocked(form, false);
+            updateLiveControls(form);
+            if (stopButton) stopButton.disabled = true;
+          }
+        }
+      });
+    });
+
+    async function pollJob(jobId, form, button, stopButton, status, stats, resultBox) {
+      let lastFrameId = -1;
+      let lastAnnotatedFrameId = -1;
+      let lastLogId = 0;
+      let previewHandoffPending = isLiveForm(form) && liveTestJobs.has(form);
+      try {
+        while (true) {
+          await delay(1000);
+          const response = await fetch(
+            `/api/jobs/${jobId}?after_frame_id=${lastFrameId}&after_annotated_frame_id=${lastAnnotatedFrameId}&after_log_id=${lastLogId}`
+          );
+          const job = await response.json();
+          if (!response.ok || !job.ok) throw new Error(job.error || "任务状态读取失败");
+          const detectionLogs = [];
+          if (job.detection_logs_dropped > 0) {
+            detectionLogs.push(`[YOLO] 日志缓冲区已更新，${job.detection_logs_dropped} 条较早的帧日志未读取。`);
+          }
+          for (const entry of job.detection_logs || []) {
+            if (Number(entry.log_id) <= lastLogId) continue;
+            detectionLogs.push(`[任务 ${jobId.slice(0, 8)}] [${entry.timestamp}] ${entry.message}`);
+            lastLogId = Number(entry.log_id);
+          }
+          if (detectionLogs.length) appendLog(detectionLogs.join("\n"));
+          if (previewHandoffPending && Number(job.raw_frame_id || 0) > 0) {
+            const originalBox = form.parentElement.querySelector(".media.original");
+            if (originalBox) {
+              originalBox.innerHTML = `<img src="/api/jobs/${jobId}/stream/raw" alt="直播原始画面">`;
+            }
+            await cancelBackendLiveTest(form);
+            previewHandoffPending = false;
+            appendLog("[live-input] 算法已接管共享 WebRTC 帧通道，直播连接未重建");
+          }
+          const frameStatus = job.frame_status || job.frame_result || {};
+          if (job.frame_status || job.frame_result) {
+            renderLiveResultSummary(job);
+            if (job.result_updated && Number.isFinite(Number(job.result_frame_id))) {
+              lastFrameId = Number(job.result_frame_id);
+            }
+            if (job.annotated_updated && Number.isFinite(Number(job.annotated_frame_id))) {
+              lastAnnotatedFrameId = Number(job.annotated_frame_id);
+            }
+          }
+          const classEntries = frameStatus.classes && typeof frameStatus.classes === "object"
+            ? Object.entries(frameStatus.classes).sort((a, b) => Number(b[1]) - Number(a[1]))
+            : [];
+          const hasPercent = job.progress !== undefined && job.progress !== null && Number.isFinite(Number(job.progress));
+          const statusLines = [
+            job.progress_text || "计数中",
+            hasPercent ? `完成度：${job.progress}%` : "",
+            frameStatus.sample_interval !== undefined ? `采样间隔：${frameStatus.sample_interval} 帧` : "",
+            frameStatus.total_count !== undefined ? `累计计数：${frameStatus.total_count}` : "",
+            ...(classEntries.length
+              ? [`分类计数（${classEntries.length} 类）：`, ...classEntries.map(([name, count]) => `  ${name}：${count}`)]
+              : [])
+          ].filter(Boolean);
+          status.textContent = statusLines.join("\\n") || "计数中";
+          if (job.status === "done" || job.status === "canceled") {
+            const payload = job.result || {};
+            status.className = "status";
+            status.textContent = job.status === "canceled" ? "计数已停止" : "计数完成";
+            stats.textContent = payload.statistics || "暂无统计结果。";
+            summary.textContent = `${payload.summary || ""}\n\n${payload.json_text || ""}`.trim();
+            if (payload.output_media_url) {
+              renderResult(form, payload.output_media_url);
+            } else if (job.status === "canceled") {
+              resultBox.textContent = "任务已停止";
+            }
+            if (payload.output_media_url && payload.output_json_url) {
+              const csvLink = payload.output_csv_url ? `<a href="${payload.output_csv_url}" target="_blank" download>下载 CSV</a>` : "";
+              links.innerHTML = `<a href="${payload.output_media_url}" target="_blank">打开输出文件</a><a href="${payload.output_json_url}" target="_blank">打开 JSON</a>${csvLink}`;
+            }
+            appendLog(job.status === "canceled" ? "[stop] 任务已停止" : "[done] 任务完成");
+            break;
+          }
+          if (job.status === "error") {
+            throw new Error(job.error || "计数失败");
+          }
+        }
+      } catch (error) {
+        status.className = "status unsafe";
+        status.textContent = "计数失败";
+        stats.textContent = String(error.message || error);
+        summary.textContent = String(error.message || error);
+        appendLog(`[error] ${error.message || error}`);
+      } finally {
+        activeJobs.delete(form);
+        setTaskParametersLocked(form, false);
+        updateLiveControls(form);
+        if (stopButton) stopButton.disabled = true;
+      }
+    }
+
+    function isLiveForm(form) {
+      const source = form.querySelector('[name="source_type"]');
+      return !!source && source.value === "live_stream";
+    }
+
+    function isLivePreviewReady(form) {
+      const jobId = liveTestJobs.get(form);
+      return !!jobId && liveReadyJobs.get(form) === jobId;
+    }
+
+    function updateLiveControls(form) {
+      if (!form) return;
+      const liveMode = isLiveForm(form);
+      const algorithmActive = activeJobs.has(form);
+      const previewActive = liveTestJobs.has(form);
+      const submitButton = form.querySelector('button[type="submit"]');
+      const testButton = form.querySelector(".test-stream-btn");
+      const stopStreamButton = form.querySelector(".stop-stream-btn");
+      if (submitButton) submitButton.disabled = algorithmActive;
+      if (testButton) testButton.disabled = !liveMode || algorithmActive || previewActive;
+      if (stopStreamButton) stopStreamButton.disabled = !liveMode || algorithmActive || !previewActive;
+    }
+
+    function setTaskParametersLocked(form, locked) {
+      if (!form) return;
+      form.querySelectorAll("input, select").forEach(control => {
+        if (locked) {
+          if (control.dataset.jobWasDisabled === undefined) {
+            control.dataset.jobWasDisabled = control.disabled ? "1" : "0";
+          }
+          control.disabled = true;
+          return;
+        }
+        if (control.dataset.jobWasDisabled !== undefined) {
+          control.disabled = control.dataset.jobWasDisabled === "1";
+          delete control.dataset.jobWasDisabled;
+        }
+      });
+    }
+
+    async function cancelBackendLiveTest(form, releaseStream = false) {
+      const jobId = liveTestJobs.get(form);
+      if (!jobId) return;
+      liveTestJobs.delete(form);
+      liveReadyJobs.delete(form);
+      const releaseQuery = releaseStream ? "?release_stream=1" : "";
+      const response = await fetch(`/api/jobs/${jobId}/cancel${releaseQuery}`, { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "停止旧直播测试失败");
+      }
+      if (["done", "error", "canceled"].includes(payload.status)) return;
+
+      const deadline = Date.now() + 10000;
+      while (Date.now() < deadline) {
+        await delay(200);
+        const statusResponse = await fetch(`/api/jobs/${jobId}`);
+        const job = await statusResponse.json();
+        if (!statusResponse.ok || !job.ok) {
+          throw new Error(job.error || "读取旧直播测试状态失败");
+        }
+        if (["done", "error", "canceled"].includes(job.status)) return;
+      }
+      throw new Error("旧 WebRTC 测试会话尚未释放，请稍后重试");
+    }
+
+    async function cancelLiveTest(form, releaseStream = false) {
+      await cancelBackendLiveTest(form, releaseStream);
+    }
+
+    async function pollLiveTest(jobId, form, status) {
+      let lastProgressText = "";
+      try {
+        while (liveTestJobs.get(form) === jobId) {
+          await delay(1000);
+          if (liveTestJobs.get(form) !== jobId) break;
+          const response = await fetch(`/api/jobs/${jobId}`);
+          const job = await response.json();
+          if (liveTestJobs.get(form) !== jobId) break;
+          if (!response.ok || !job.ok) throw new Error(job.error || "直播状态读取失败");
+          if (job.status === "error") throw new Error(job.error || "直播流不可用");
+          if (job.stream_ready) {
+            liveReadyJobs.set(form, jobId);
+            status.className = "status safe";
+          } else {
+            liveReadyJobs.delete(form);
+            status.className = "status";
+          }
+          updateLiveControls(form);
+          if (job.progress_text) {
+            status.textContent = job.progress_text;
+            if (job.progress_text !== lastProgressText) {
+              lastProgressText = job.progress_text;
+              appendLog(`[live-test] ${job.progress_text}`);
+            }
+          } else if (job.stream_ready) {
+            status.textContent = "直播测试正常";
+          }
+          if (job.status === "canceled" || job.status === "done") {
+            if (liveTestJobs.get(form) === jobId) {
+              liveTestJobs.delete(form);
+              liveReadyJobs.delete(form);
+              updateLiveControls(form);
+            }
+            break;
+          }
+        }
+      } catch (error) {
+        if (liveTestJobs.get(form) === jobId) {
+          liveTestJobs.delete(form);
+          liveReadyJobs.delete(form);
+          status.className = "status unsafe";
+          status.textContent = `直播测试失败：${error.message || error}`;
+          appendLog(`[live-test] 失败：${error.message || error}`);
+          updateLiveControls(form);
+        }
+      }
+    }
+
+    function updateSourceInput(form) {
+      if (!form) return;
+      const select = form.querySelector('select[name="source_type"]');
+      const input = form.querySelector('input[name="source_file"], input[name="video"]');
+      const pathInput = form.querySelector('input[name="source_path"], input[name="video_path"]');
+      if (!select) return;
+      const liveMode = select.value === "live_stream";
+      const fileFields = form.querySelector(".file-source-fields");
+      const liveFields = form.querySelector(".live-stream-fields");
+      if (fileFields) fileFields.hidden = liveMode;
+      if (liveFields) liveFields.hidden = !liveMode;
+      if (input) input.disabled = liveMode;
+      if (pathInput) pathInput.disabled = liveMode;
+      form.querySelectorAll('.live-stream-fields input, .live-stream-fields select').forEach(item => item.disabled = !liveMode);
+      if (!liveMode) {
+        liveReadyJobs.delete(form);
+        cancelLiveTest(form, true).catch(error => appendLog(`[live-test] ${error.message || error}`));
+      }
+      updateLiveControls(form);
+      updateMaterialPreview(form);
+      if (liveMode || !input) return;
+      input.value = "";
+      input.removeAttribute("webkitdirectory");
+      input.removeAttribute("directory");
+      input.webkitdirectory = false;
+      input.directory = false;
+      input.multiple = false;
+      if (select.value === "image_sequence") {
+        input.accept = "image/*";
+        input.multiple = true;
+        input.setAttribute("webkitdirectory", "");
+        input.setAttribute("directory", "");
+        input.webkitdirectory = true;
+        input.directory = true;
+        if (pathInput) pathInput.placeholder = "可选择图片文件夹，也可填写服务器本地文件夹路径";
+      } else if (select.value === "video") {
+        input.accept = "video/*";
+        if (pathInput) pathInput.placeholder = "可上传视频，也可填写服务器本地视频路径";
+      } else {
+        input.accept = "image/*";
+        if (pathInput) pathInput.placeholder = "可上传单张图片，也可填写服务器本地图片路径";
+      }
+    }
+
+    function updateMaterialPreview(form) {
+      if (!form || !form.classList.contains("unified-material-form")) return;
+      const source = form.querySelector('[name="source_type"]');
+      const liveMode = !!source && source.value === "live_stream";
+      const previewGrid = form.parentElement.querySelector(".material-preview-grid");
+      const livePreview = form.parentElement.querySelector(".material-live-preview");
+      const title = form.parentElement.querySelector(".material-preview-title");
+      if (livePreview) livePreview.hidden = !liveMode;
+      if (previewGrid) previewGrid.classList.toggle("single", !liveMode);
+      if (title) title.textContent = liveMode ? "直播画面 / 实时计数结果" : "计数结果";
+      if (livePreview) {
+        const original = livePreview.querySelector(".media.original");
+        if (original) original.textContent = liveMode ? "请先输入地址并测试直播" : "未接入直播流";
+      }
+    }
+
+    function prepareMaterialTargets(form) {
+      const task = form.dataset.modelTask || "";
+      if (task && !["obb", "detect"].includes(task)) {
+        return `当前模型 task=${task}，物资计数只支持 OBB 或目标检测模型。`;
+      }
+      const selectedRows = [...form.querySelectorAll(".material-target-row[data-class-name]")]
+        .filter(row => row.querySelector(".material-target-check")?.checked);
+      if (!selectedRows.length) return "请至少勾选一个需要计数的物资类别。";
+
+      const targetClasses = [];
+      const expectedCounts = [];
+      for (const row of selectedRows) {
+        const className = row.dataset.className;
+        const quantity = row.querySelector(".material-target-quantity");
+        const rawQuantity = (quantity?.value || "").trim();
+        targetClasses.push(className);
+        if (rawQuantity !== "") {
+          const value = Number(rawQuantity);
+          if (!Number.isInteger(value) || value < 0) return `${className} 的实际数量必须是非负整数。`;
+          expectedCounts.push(`${className},${value}`);
+        }
+      }
+      form.querySelector('[name="target_classes"]').value = targetClasses.join("\n");
+      form.querySelector('[name="expected_counts"]').value = expectedCounts.join("\n");
+      return "";
+    }
+
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function renderLiveResultSummary(job) {
+      const latestResult = {
+        algorithm: job.algorithm || "unknown",
+        status: job.status || "running",
+        result_updated: Boolean(job.result_updated),
+        frame_id: job.frame_id ?? null,
+        frame_status: job.frame_status || null,
+        annotated_updated: Boolean(job.annotated_updated),
+        annotated_frame_id: job.annotated_frame_id ?? null,
+        annotated_timestamp: job.annotated_timestamp || null,
+        latest_frame_url: job.latest_frame_url || null,
+        result_frame_id: job.result_frame_id ?? null,
+        result_timestamp: job.result_timestamp || null,
+        hazard_event: job.result_updated ? (job.frame_result || null) : null
+      };
+      summary.textContent = `实时画面状态（每一秒刷新）\n${JSON.stringify(latestResult, null, 2)}`;
+    }
+
+    function renderResult(form, url) {
+      const box = form.parentElement.querySelector(".media.result");
+      const lower = String(url || "").toLowerCase();
+      const separator = String(url).includes("?") ? "&" : "?";
+      const freshUrl = `${url}${separator}t=${Date.now()}`;
+      const isImage = [".jpg", ".jpeg", ".png", ".bmp", ".webp"].some(ext => lower.includes(ext));
+      if (!isImage && (form.dataset.kind === "video" || lower.includes(".mp4") || lower.includes(".avi") || lower.includes(".mov") || lower.includes(".mkv"))) {
+        box.innerHTML = `<video src="${freshUrl}" controls preload="metadata"></video>`;
+      } else {
+        box.innerHTML = `<img src="${freshUrl}" alt="检测结果">`;
+      }
+    }
+
+    function appendLog(text) {
+      const stamp = new Date().toLocaleTimeString();
+      const followLatest = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+      if (log.textContent === "运行日志会显示在这里") log.textContent = "";
+      let content = log.textContent + `[${stamp}] ${text}\n`;
+      const maxCharacters = 200000;
+      if (content.length > maxCharacters) {
+        const cut = content.indexOf("\n", content.length - maxCharacters);
+        content = `[日志仅保留最近内容]\n${content.slice(cut >= 0 ? cut + 1 : -maxCharacters)}`;
+      }
+      log.textContent = content;
+      if (followLatest) log.scrollTop = log.scrollHeight;
+    }
+
+    async function openBrowser(kind, input, onSelect = null, initialPath = "") {
+      browser.kind = kind;
+      browser.input = input;
+      browser.selectedFile = "";
+      browser.onSelect = onSelect;
+      const isFileLike = kind === "file" || kind === "video";
+      browser.title.textContent = kind === "video" ? "选择视频" : (kind === "file" ? "选择模型" : "选择输出目录");
+      browser.fileSection.style.display = isFileLike ? "block" : "none";
+      browser.select.textContent = kind === "video" ? "选择视频" : (kind === "file" ? "选择模型" : "选择当前目录");
+      browser.root.classList.add("active");
+      await loadBrowser(initialPath || (input && input.value ? input.value : ""));
+    }
+
+    function closeBrowser() {
+      browser.root.classList.remove("active");
+      browser.input = null;
+      browser.selectedFile = "";
+      browser.onSelect = null;
+    }
+
+    async function loadBrowser(path) {
+      browser.dirList.innerHTML = `<div class="browser-empty">加载中...</div>`;
+      browser.fileList.innerHTML = "";
+      const response = await fetch(`/api/browse?kind=${encodeURIComponent(browser.kind)}&path=${encodeURIComponent(path || "")}`);
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        browser.dirList.innerHTML = `<div class="browser-empty">${payload.error || "路径读取失败"}</div>`;
+        return;
+      }
+      browser.current = payload.current || "";
+      browser.parentPath = payload.parent || "";
+      browser.path.value = browser.current;
+      renderDrives(payload.drives || []);
+      renderDirs(payload.dirs || []);
+      renderFiles(payload.files || []);
+      browser.select.disabled = browser.kind === "file" || browser.kind === "video";
+    }
+
+    function renderDrives(drives) {
+      browser.driveSection.style.display = drives.length > 1 ? "block" : "none";
+      browser.driveList.innerHTML = drives.map(path => `<button class="browser-item" type="button" data-path="${escapeAttr(path)}">${escapeHtml(path)}</button>`).join("");
+      browser.driveList.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => loadBrowser(button.dataset.path));
+      });
+    }
+
+    function renderDirs(dirs) {
+      if (!dirs.length) {
+        browser.dirList.innerHTML = `<div class="browser-empty">没有可打开的文件夹</div>`;
+        return;
+      }
+      browser.dirList.innerHTML = dirs.map(item => `<button class="browser-item" type="button" data-path="${escapeAttr(item.path)}"><span>${escapeHtml(item.name)}</span><span>文件夹</span></button>`).join("");
+      browser.dirList.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => loadBrowser(button.dataset.path));
+      });
+    }
+
+    function renderFiles(files) {
+      if (browser.kind !== "file" && browser.kind !== "video") return;
+      if (!files.length) {
+        browser.fileList.innerHTML = `<div class="browser-empty">当前目录没有可选${browser.kind === "video" ? "视频" : "模型"}文件</div>`;
+        return;
+      }
+      browser.fileList.innerHTML = files.map(item => `<button class="browser-item" type="button" data-path="${escapeAttr(item.path)}"><span>${escapeHtml(item.name)}</span><span>${formatSize(item.size)}</span></button>`).join("");
+      browser.fileList.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => {
+          browser.fileList.querySelectorAll("button").forEach(item => item.classList.remove("selected"));
+          button.classList.add("selected");
+          browser.selectedFile = button.dataset.path;
+          browser.select.disabled = false;
+        });
+      });
+    }
+
+    function formatSize(bytes) {
+      const value = Number(bytes || 0);
+      if (value >= 1024 * 1024 * 1024) return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
+      if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(2)} MB`;
+      if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+      return `${value} B`;
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    }
+
+    function escapeAttr(text) {
+      return escapeHtml(text);
+    }
+  </script>
+</body>
+</html>

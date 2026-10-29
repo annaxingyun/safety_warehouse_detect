@@ -1,0 +1,36 @@
+# 运行时产物（体积大，不入库）
+/outputs/
+/runs/
+
+# 测试视频：单文件 100MB+ 会被 GitHub 拒绝，需要时另行分发
+/Videos/
+
+# 与物资计数无关的权重文件
+yolo26n-cls.pt
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# 工具缓存
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 日志与临时文件
+*.log
+.tmp/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+desktop.ini

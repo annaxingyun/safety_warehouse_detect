@@ -1,0 +1,29 @@
+# 物资计数 Web 系统的运行依赖（torch / torchvision 按机器单独安装，见文件末尾说明）
+# 安装：pip install -r requirements_app.txt
+
+# 本地 ultralytics 源码包的依赖（本项目直接使用仓库内的 ultralytics/ 目录）
+numpy>=2.0,<3.0
+opencv-python>=4.8
+matplotlib>=3.3.0
+pillow>=7.1.2
+PyYAML>=5.3.1
+requests>=2.23.0
+scipy>=1.4.1
+psutil>=5.8.0
+polars>=0.20.0
+ultralytics-thop>=2.0.18
+
+# 直播流（WebRTC / WHEP 拉流与 H.264 解码）
+aiortc>=1.9.0
+av>=13.0.0
+aiohttp>=3.9
+certifi>=2024.0.0
+
+# 多目标跟踪
+lap>=0.5.12
+
+# torch / torchvision 不写在这里，按目标机器单独安装：
+#   NVIDIA 显卡（CUDA 12.6）：
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+#   无显卡 / 纯 CPU：
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu

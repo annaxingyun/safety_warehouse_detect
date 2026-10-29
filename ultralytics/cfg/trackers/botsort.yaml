@@ -1,0 +1,57 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# BoT-SORT tracker defaults for mode="track"
+# Docs: https://docs.ultralytics.com/modes/track/
+
+tracker_type: botsort # (str) Tracker backend: botsort|bytetrack; choose botsort to enable BoT-SORT features
+track_high_thresh: 0.25 # (float) First-stage match threshold; raise for cleaner tracks, lower to keep more
+track_low_thresh: 0.1 # (float) Second-stage threshold for low-score matches; balances recovery vs drift
+new_track_thresh: 0.25 # (float) Start a new track if no match ≥ this; higher reduces false tracks
+track_buffer: 30 # (int) Frames to keep lost tracks alive; higher handles occlusion, increases ID switches risk
+match_thresh: 0.8 # (float) Association similarity threshold (IoU/cost); tune with detector quality
+fuse_score: True # (bool) Fuse detection score with motion/IoU for matching; stabilizes weak detections
+
+# BoT-SORT specifics
+gmc_method: sparseOptFlow # (str) Global motion compensation: sparseOptFlow|orb|sift|ecc|none; helps moving camera scenes
+
+# ReID model related thresh
+proximity_thresh: 0.5 # (float) Min IoU to consider tracks proximate for ReID; higher is stricter
+appearance_thresh: 0.8 # (float) Min appearance similarity for ReID; raise to avoid identity swaps
+with_reid: True # (bool) Enable ReID model use; needs extra model and compute
+model: auto # (str) ReID model name/path; "auto" uses detector features if available
+
+# Improved BoT-SORT motion options
+enable_maha_gating: False # (bool) Enable Mahalanobis motion gating/fusion during association
+maha_only_position: True # (bool) Use center position only for Mahalanobis distance; more tolerant for scale changes
+maha_gating_prob: 0.999 # (float) Chi-square gate probability; 0.999 is loose for moving-camera/UAV scenes
+maha_gating_tau: null # (float|null) Override hard Mahalanobis threshold; null derives from maha_gating_prob
+maha_tau_soft: null # (float|null) Override soft Mahalanobis threshold; null uses chi-square 0.99
+maha_inflate_alpha_pos: 0.5 # (float) Inflate position covariance before gating to reduce overconfidence
+enable_maha_stage2: False # (bool) Apply Mahalanobis gating to low-score second association
+enable_maha_stage3: False # (bool) Apply Mahalanobis gating to unconfirmed tracks
+use_soft_motion: True # (bool) Fuse motion as a soft cost instead of hard-only gating
+disable_hard_gate: True # (bool) Disable INF hard rejection and use pure soft motion penalty
+min_std_xy: 5.0 # (float) Minimum position std in pixels for gating covariance
+fix_gmc_wh: True # (bool) GMC transforms x/y and vx/vy only, leaving w/h dimensions unrotated
+debug_gating: False # (bool) Log low-frequency Mahalanobis diagnostics
+gating_log_interval: 50 # (int) Frame interval for gating diagnostics
+
+# Adaptive Kalman Filter options
+enable_adaptive_kf: False # (bool) Scale process noise from camera motion and matched innovation
+akf_use_cam_motion: True # (bool) Use GMC affine motion to scale Kalman process noise
+akf_q_cam_min: 1.0 # (float) Minimum camera-motion process-noise scale
+akf_q_cam_max: 6.0 # (float) Maximum camera-motion process-noise scale
+akf_rot_ref_deg: 10.0 # (float) Rotation reference in degrees for camera-motion scaling
+akf_k_rot: 1.0 # (float) Rotation contribution to camera-motion scale
+akf_k_trans: 1.0 # (float) Translation contribution to camera-motion scale
+akf_k_scale: 1.0 # (float) Scale-change contribution to camera-motion scale
+akf_use_nis: True # (bool) Use matched innovation to adapt per-track process noise
+akf_nis_dof: 2.0 # (float) NIS degrees of freedom; 2 when maha_only_position=True
+akf_k_nis: 0.5 # (float) Innovation contribution to per-track process-noise scale
+akf_q_nis_max: 4.0 # (float) Maximum per-track innovation scale
+akf_nis_ema: 0.9 # (float) EMA factor for per-track innovation scale
+akf_use_fading: True # (bool) Inflate covariance with a fading factor derived from camera motion
+akf_lambda_min: 1.0 # (float) Minimum fading covariance factor
+akf_lambda_max: 3.0 # (float) Maximum fading covariance factor
+akf_debug: True # (bool) Log adaptive Kalman diagnostics
+akf_log_interval: 50 # (int) Frame interval for adaptive Kalman diagnostics
