@@ -447,6 +447,14 @@ class MaterialCounter:
         self.total_count = 0
         self.last_media_path = ""
         self.model_task = ""
+        self.model_task = ""
+
+        # ================= 【新增配置与状态字典】 =================
+        self.MIN_TRACK_FRAMES = 20  # 轨迹存活阈值：至少连续出现 20 帧才被计入总数
+        self.track_frame_counts = defaultdict(int)  # 记录每个轨迹的存活帧数
+        self.track_class_scores = {}  # 记录每个轨迹各类别的累计置信度 {tid: {cls_id: score}}
+        self.track_final_class = {}  # 记录每个轨迹最终被锁定的类别 {tid: cls_id}
+        # ==========================================================
 
     def run(
         self,
@@ -715,26 +723,65 @@ class MaterialCounter:
         detections = parse_material_detections(result)
         active_tracks = 0
         for detection in detections:
-            cls_id = int(detection["class_id"])
+            raw_cls_id = int(detection["class_id"])
             track_id = detection.get("track_id")
-            if cls_id not in class_names or cls_id not in self.target_class_ids or track_id is None:
+            conf = float(detection["confidence"])
+
+            if raw_cls_id not in class_names or track_id is None:
                 continue
+
             active_tracks += 1
             tid = int(track_id)
-            pair = (self.track_generation, cls_id, tid)
-            if pair not in self.counted_track_ids:
-                self.counted_track_ids.add(pair)
-                cls_name = class_names[cls_id]
-                self.class_counts[cls_name] += 1
-                self.total_count += 1
-                self.counted_track_ordinals[pair] = self.class_counts[cls_name]
+
+            # 1. 维护轨迹帧数与置信度累加
+            self.track_frame_counts[tid] += 1
+            if tid not in self.track_class_scores:
+                self.track_class_scores[tid] = {}
+            self.track_class_scores[tid][raw_cls_id] = self.track_class_scores[tid].get(raw_cls_id, 0.0) + conf
+
+            # 2. 计算当前累计置信度最高的类别
+            scores = self.track_class_scores[tid]
+            current_best_cls = max(scores, key=scores.get)
+
+            # 3. 判断是否达到“准入门槛” (短轨迹过滤)
+            if self.track_frame_counts[tid] >= self.MIN_TRACK_FRAMES:
+                # 如果达到门槛，且还未锁定最终类别，则立刻锁定
+                if tid not in self.track_final_class:
+                    self.track_final_class[tid] = current_best_cls
+                    # 可以在这里打印日志，方便你观察锁定过程
+                    # print(f"[{frame_idx}帧] 锁定轨迹 ID {tid} 为类别 {current_best_cls}")
+
+            # 获取用于显示和计数的类别：
+            # 若锁定过了，就用锁定的；若没锁定（还在观察期），就暂用当前最高分类别
+            display_cls_id = self.track_final_class.get(tid, current_best_cls)
+
+            # 过滤掉没勾选的目标类别
+            if display_cls_id not in self.target_class_ids:
+                continue
+
+            # 4. 计数逻辑 (只有过门槛的轨迹才被计入)
+            pair = (self.track_generation, display_cls_id, tid)
+            if self.track_frame_counts[tid] >= self.MIN_TRACK_FRAMES:
+                if pair not in self.counted_track_ids:
+                    self.counted_track_ids.add(pair)
+                    cls_name = class_names[display_cls_id]
+                    self.class_counts[cls_name] += 1
+                    self.total_count += 1
+                    self.counted_track_ordinals[pair] = self.class_counts[cls_name]
+
+            # 5. 画框逻辑
             ordinal = self.counted_track_ordinals.get(pair, 0)
+            label = f"{class_names[display_cls_id]}"
+            if ordinal > 0:
+                label += f" {ordinal}"
+
             draw_labeled_detection(
                 frame,
                 detection["points"],
-                f"{class_names[cls_id]} {ordinal}",
+                label,
                 track_color(tid),
             )
+
         if frame_idx % 30 == 0:
             print(f"[material-count] frame={frame_idx} tracks={active_tracks} count={self.total_count}", flush=True)
         return frame, active_tracks
